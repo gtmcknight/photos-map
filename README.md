@@ -1,6 +1,6 @@
 # Map for Google Photos
 
-Google Photos has a map on your phone but not on the web. This Chrome extension adds one: a **Map** item in Google Photos' left menu, next to Places.
+Google Photos has a map on your phone but not on the web. This Chrome extension adds one: a **Map** item in Google Photos' left menu, next to Places. [taylor.fyi/map-for-google-photos](https://taylor.fyi/map-for-google-photos/)
 
 ![The Map page in Google Photos: photo bubbles and a heat map over Europe, the photos in view beside it, and the year bar](docs/map.jpg)
 

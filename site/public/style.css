@@ -1,0 +1,170 @@
+/* Map for Google Photos: the page and its privacy policy. Day by default, night behind [data-theme="dark"]. */
+
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --text: #111114;
+  --text-2: #4a4a52;
+  --line: rgba(17, 17, 20, 0.1);
+  --hover: rgba(17, 17, 20, 0.06);
+  --img-line: rgba(0, 0, 0, 0.1);
+  --accent: #6a3de8;
+  --accent-hover: #5a2fd6;
+  --on-accent: #ffffff;
+  --focus: #6a3de8;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e0e11;
+  --text: #f4f4f6;
+  --text-2: #a3a3ad;
+  --line: rgba(255, 255, 255, 0.12);
+  --hover: rgba(255, 255, 255, 0.08);
+  --img-line: rgba(255, 255, 255, 0.1);
+  --accent: #7c55f0;
+  --accent-hover: #8d6bf5;
+  --focus: #a48bff;
+}
+
+/* the flip between day and night happens at once, not as a hundred transitions */
+.no-transition, .no-transition * { transition: none !important; }
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
+}
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* header: the name goes home, the day/night switch sits at the right */
+.top { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.mark { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.mark img { width: 28px; height: 28px; display: block; }
+.theme {
+  width: 44px; height: 44px; margin-right: -12px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 999px; background: none; color: var(--text);
+  cursor: pointer; transition: background-color 150ms var(--ease);
+}
+.theme:hover { background: var(--hover); }
+.theme svg { width: 20px; height: 20px; }
+.theme [hidden] { display: none; }
+
+/* hero */
+.hero { padding-top: 56px; text-align: center; }
+h1 {
+  margin: 0 auto;
+  font-size: clamp(40px, 5.4vw, 68px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.lead {
+  margin: 20px auto 0;
+  max-width: 34em;
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--text-2);
+  text-wrap: balance;
+}
+.cta { margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px 24px; }
+.button {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 44px; padding: 0 22px 0 18px;
+  border-radius: 999px; background: var(--accent); color: var(--on-accent);
+  font-weight: 500; text-decoration: none; white-space: nowrap;
+  transition: background-color 150ms var(--ease), transform 150ms var(--ease);
+}
+.button:hover { background: var(--accent-hover); }
+.button:active { transform: scale(0.97); }
+.button svg { width: 20px; height: 20px; }
+.note { font-size: 14px; color: var(--text-2); }
+
+/* product shots: real screenshots with a hairline, never stretched */
+.shot { margin: 0; }
+.shot img {
+  display: block; width: 100%; height: auto;
+  border-radius: 14px;
+  outline: 1px solid var(--img-line); outline-offset: -1px;
+}
+.hero .shot { margin-top: 56px; }
+
+/* three features: two wide shots on the left, the tall photo list on the right */
+.features {
+  display: grid;
+  grid-template-columns: 19fr 21fr;
+  gap: 48px;
+  margin-top: 96px;
+}
+.feature { margin: 0; }
+.feature p, .privacy p { margin: 16px 0 0; font-size: 18px; line-height: 1.45; color: var(--text-2); max-width: 44em; text-wrap: pretty; }
+.feature b, .privacy b { color: var(--text); font-weight: 700; }
+.feature.tall { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; }
+.feature.tall .shot { position: relative; flex: 1; min-height: 0; }
+.feature.tall .shot img { position: absolute; inset: 0; height: 100%; object-fit: cover; object-position: left top; }
+
+/* privacy, said once, plainly */
+.privacy { max-width: 680px; margin: 96px auto 0; text-align: center; }
+.privacy p { margin: 0 auto; text-wrap: balance; }
+.privacy .more { margin-top: 16px; font-size: 16px; font-weight: 500; color: var(--text); }
+
+.foot {
+  margin-top: 96px;
+  padding: 24px 0 40px;
+  border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px;
+  font-size: 14px; color: var(--text-2);
+}
+
+/* the privacy policy page */
+.doc { max-width: 720px; padding-top: 56px; }
+.doc h1 { margin: 0; font-size: clamp(32px, 4vw, 44px); text-align: left; }
+.doc .lead { margin: 16px 0 0; max-width: none; text-wrap: pretty; }
+.doc h2 { margin: 48px 0 0; font-size: 20px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; }
+.doc p, .doc li { font-size: 18px; line-height: 1.55; color: var(--text-2); text-wrap: pretty; }
+.doc p { margin: 12px 0 0; }
+.doc ul { margin: 12px 0 0; padding-left: 1.25em; }
+.doc li + li { margin-top: 12px; }
+.doc .meta { margin-top: 48px; font-size: 14px; }
+
+@media (max-width: 860px) {
+  .features { grid-template-columns: 1fr; margin-top: 72px; }
+  .feature.tall { grid-column: auto; grid-row: auto; }
+  .feature.tall .shot { flex: none; }
+  .feature.tall .shot img { position: static; height: auto; }
+}
+
+@media (max-width: 600px) {
+  .wrap { padding: 0 16px; }
+  .hero { padding-top: 32px; }
+  .lead { font-size: 18px; }
+  .hero .shot { margin-top: 40px; }
+  .shot img { border-radius: 10px; }
+  .privacy { margin-top: 72px; text-align: left; }
+  .foot { margin-top: 72px; }
+  .doc { padding-top: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button:active { transform: none; }
+}

@@ -11,7 +11,7 @@ Everything the developer dashboard asks for, ready to paste.
 See every photo you've taken on a map, right inside Google Photos on the web. Drag through the years.
 ```
 
-- **Category:** Photos
+- **Category:** Functionality & UI (the store has no Photos category)
 - **Language:** English
 
 ## Description
@@ -63,7 +63,8 @@ Adds the Map page inside Google Photos and reads your library's photo locations 
 
 - **Remote code:** No, I am not using remote code. If the reviewer asks: every script ships in the package. The map's worker is the packaged `maplibre-gl-worker.mjs`, started from a blob because Google Photos' page won't start a worker from an extension URL. MapLibre's worker has a dormant script loader (`importScript`), reachable only through `setRTLTextPlugin` or `importScriptInWorkers`, and neither is ever called.
 - **Data usage:** tick **Location** (photo locations are read and kept on the computer; map tile requests show OpenFreeMap the areas you view) and **Website content** (photo dates and thumbnail addresses read from Google Photos, kept on the computer). Leave everything else unticked, and tick all three certifications (not sold, not used for unrelated purposes, not used for lending).
-- **Privacy policy URL:** https://github.com/gtmcknight/photos-map/blob/main/PRIVACY.md
+- **Privacy policy URL:** https://taylor.fyi/map-for-google-photos/privacy
+- **Homepage URL:** https://taylor.fyi/map-for-google-photos/ · **Support URL:** https://github.com/gtmcknight/photos-map/issues
 
 ## Images
 
