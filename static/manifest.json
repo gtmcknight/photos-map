@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Map for Google Photos",
+  "version": "1.0.0",
+  "description": "A map of your photos inside Google Photos on the web. Your photo locations stay on your computer.",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "Open your photo map",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+  "permissions": ["storage", "unlimitedStorage"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://photos.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["engine.js", "maplibre-gl-worker.mjs"],
+      "matches": ["https://photos.google.com/*"]
+    }
+  ],
+  "minimum_chrome_version": "120"
+}

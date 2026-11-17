@@ -1,0 +1,24 @@
+{
+  "name": "photos-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A map of your photos inside Google Photos on the web.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --dev --watch",
+    "test": "node --test test/*.test.ts",
+    "check": "tsc --noEmit -p . && node --test test/*.test.ts",
+    "zip": "node build.mjs && cd dist && zip -qr ../map-for-google-photos-$npm_package_version.zip . && echo map-for-google-photos-$npm_package_version.zip"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.16.0"
+  },
+  "devDependencies": {
+    "@maplibre/maplibre-gl-style-spec": "26.8.0",
+    "@types/chrome": "0.3.7",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT"
+}
