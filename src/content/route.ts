@@ -45,3 +45,38 @@ export function hashFor(viewport: MapViewport | null, years: YearRange | null): 
 
 export const sameYears = (a: YearRange | null, b: YearRange | null) =>
   a === b || (!!a && !!b && a.from === b.from && a.to === b.to);
+
+/**
+ * The words of a Google Photos search page, or null for any other page. Its
+ * URL is /search/<token>, where the token is a base64 protobuf whose first
+ * field is the text that was searched for.
+ */
+export function searchQuery(pathname: string): string | null {
+  const m = pathname.match(/^(?:\/u\/\d+)?\/search\/([^/]+)\/?$/);
+  if (!m) return null;
+  let bytes: Uint8Array;
+  try {
+    const b64 = decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+    const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+    bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+  // Field 1 as length-delimited bytes: the tag 0x0a, a varint length, the text.
+  if (bytes[0] !== 0x0a) return null;
+  let i = 1;
+  let length = 0;
+  for (let shift = 0; ; shift += 7) {
+    if (i >= bytes.length || shift > 21) return null;
+    const b = bytes[i++];
+    length += (b & 0x7f) * 2 ** shift;
+    if (b < 0x80) break;
+  }
+  if (length < 1 || length > 500 || i + length > bytes.length) return null;
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(i, i + length)).trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}

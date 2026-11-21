@@ -1,6 +1,6 @@
 {
   "name": "photos-map",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "A map of your photos inside Google Photos on the web.",
   "type": "module",

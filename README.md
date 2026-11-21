@@ -8,6 +8,7 @@ Google Photos has a map on your phone but not on the web. This Chrome extension 
 - Photo bubbles: click one to zoom into a place or open the photo.
 - The photos in view, grouped by day, beside the map.
 - A year bar to show only some years.
+- Search results on the map: on Google Photos' own search page ("beach", a person's name), the map button shows where every result was taken.
 - Photos open in Google Photos' own viewer and close back into the map, where you left it.
 - Follows Google Photos' light and dark themes. The map's position and years live in the address bar, so a place can be bookmarked.
 
@@ -36,6 +37,7 @@ The first visit reads your library once (about 4 minutes for 100,000 photos) and
 
 - `src/content/index.ts`: the content script. Adds the nav item, keeps the URL (`#map/@lat,lng,zoomz/2013-2019`) in step with the map, and opens photos in Google's viewer.
 - `src/content/library.ts`, `google.ts`, `parse.ts`, `store.ts`: reads photo locations from Google Photos (the same read-only call its timeline uses) and caches them locally.
+- `src/content/search.ts`, `searchbutton.ts`: a search page's results on the map. Google's own search call (`EzkLib`) returns the results' keys, matched against the cached locations; the button is cloned from the search header's More options button.
 - `src/content/view.ts`, `grid.ts`, `years.ts`, `flight.ts`: the Map page, drawn over Google's content card in a shadow root, the photo panel, the year bar, and the photo's flight between its tile and Google's viewer.
 - `src/engine`: MapLibre and the map style, loaded the first time the map opens.
 

@@ -202,7 +202,8 @@ export class Library {
         const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(30_000)]);
         return await timelinePage(this.session, cursor, signal);
       } catch (e) {
-        if (attempt >= 3 || this.abort.signal.aborted) throw e;
+        // Busy means Google wants a pause; asking again at once makes it longer.
+        if (attempt >= 3 || this.abort.signal.aborted || (e instanceof GoogleError && e.busy)) throw e;
         // Tokens can expire on a long-open tab: fetch fresh ones, then back off.
         this.session = await fetchSession().catch(() => null);
         await sleep(1500 * (attempt + 1));

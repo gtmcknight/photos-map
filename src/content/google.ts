@@ -1,4 +1,4 @@
-import { parsePage, type Page } from './parse.ts';
+import { parsePage, parseSearchPage, type Page, type SearchPage } from './parse.ts';
 
 /** The tokens Google Photos' own web client sends with each request. */
 export interface Session {
@@ -13,9 +13,12 @@ export interface Session {
 
 export class GoogleError extends Error {
   readonly signedOut: boolean;
-  constructor(message: string, signedOut = false) {
+  /** Google asked for a pause: it answered RESOURCE_EXHAUSTED */
+  readonly busy: boolean;
+  constructor(message: string, signedOut = false, busy = false) {
     super(message);
     this.signedOut = signedOut;
+    this.busy = busy;
   }
 }
 
@@ -80,6 +83,26 @@ export function extract(text: string, id: string): unknown {
   return undefined;
 }
 
+/** The status code Google sent in place of an RPC's payload, if it did. */
+export function errorCode(text: string, id: string): number | null {
+  for (const line of text.split('\n')) {
+    if (!line.includes('wrb.fr')) continue;
+    let rows: unknown;
+    try {
+      rows = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (Array.isArray(row) && row[0] === 'wrb.fr' && row[1] === id && Array.isArray(row[5]) && typeof row[5][0] === 'number') {
+        return row[5][0];
+      }
+    }
+  }
+  return null;
+}
+
 let requestId = 1000 + Math.floor(Math.random() * 8000);
 
 async function rpc(session: Session, id: string, payload: unknown, signal: AbortSignal): Promise<unknown> {
@@ -104,9 +127,16 @@ async function rpc(session: Session, id: string, payload: unknown, signal: Abort
     signal,
   });
   if (res.status === 401) throw new GoogleError('Signed out', true);
+  // Too many requests: back off, don't retry at once.
+  if (res.status === 429) throw new GoogleError('Google Photos is busy', false, true);
   if (!res.ok) throw new GoogleError(`Google Photos answered ${res.status}`);
-  const data = extract(await res.text(), id);
-  if (data === undefined) throw new GoogleError('Google Photos sent an answer we could not read');
+  const text = await res.text();
+  const data = extract(text, id);
+  if (data === undefined) {
+    // 8 is RESOURCE_EXHAUSTED: asked too much too quickly.
+    if (errorCode(text, id) === 8) throw new GoogleError('Google Photos is busy', false, true);
+    throw new GoogleError('Google Photos sent an answer we could not read');
+  }
   return data;
 }
 
@@ -116,4 +146,13 @@ async function rpc(session: Session, id: string, payload: unknown, signal: Abort
  */
 export async function timelinePage(session: Session, cursor: string | null, signal: AbortSignal): Promise<Page> {
   return parsePage(await rpc(session, 'lcxiM', [cursor, null, 500, null, 1, 3], signal));
+}
+
+/**
+ * One page of search results, newest first. Read-only: `EzkLib` is the call
+ * Google Photos' own search page makes, here 500 results at a time in date
+ * order (mode 1; mode 2 is its "most relevant" row).
+ */
+export async function searchPage(session: Session, query: string, cursor: string | null, signal: AbortSignal): Promise<SearchPage> {
+  return parseSearchPage(await rpc(session, 'EzkLib', [null, null, cursor, null, 500, null, 1, [query], 3, [1, 1]], signal));
 }

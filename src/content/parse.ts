@@ -68,6 +68,29 @@ export function parseItem(item: unknown): Photo | 'nogeo' | null {
   return photo;
 }
 
+export interface SearchPage {
+  /** The media keys of this page's results, newest first */
+  keys: string[];
+  /** Cursor for the next page, null on the last one */
+  next: string | null;
+}
+
+/**
+ * One page of results from the `EzkLib` search call. Its items are shaped
+ * like the timeline's but carry no location, so only their keys are kept:
+ * the map finds each one's place among the photos it already has.
+ */
+export function parseSearchPage(data: unknown): SearchPage {
+  if (!Array.isArray(data)) throw new Error('The search answer changed shape');
+  const items = Array.isArray(data[0]) ? data[0] : [];
+  const keys: string[] = [];
+  for (const item of items) {
+    if (Array.isArray(item) && typeof item[0] === 'string' && item[0]) keys.push(item[0]);
+  }
+  const next = typeof data[1] === 'string' && data[1] ? data[1] : null;
+  return { keys, next };
+}
+
 export function parsePage(data: unknown): Page {
   if (!Array.isArray(data)) throw new Error('The timeline answer changed shape');
   const items = Array.isArray(data[0]) ? data[0] : [];

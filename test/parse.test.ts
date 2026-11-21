@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { extract, sessionFromText } from '../src/content/google.ts';
-import { parseItem, parsePage } from '../src/content/parse.ts';
+import { errorCode, extract, sessionFromText } from '../src/content/google.ts';
+import { parseItem, parsePage, parseSearchPage } from '../src/content/parse.ts';
 
 // Shapes copied from the lcxiM timeline call, with made-up values.
 function item(key: string, geo: unknown, extra: Record<string, unknown> = {}) {
@@ -85,4 +85,26 @@ test('reads the session tokens from the page script', () => {
   const text = 'window.WIZ_global_data = {"SNlM0e":"tok\\u003d1","FdrFJe":"-123","cfb2h":"boq_x","eptZe":"/u/1/_/PhotosUi/","S06Grb":"9876"};';
   assert.deepEqual(sessionFromText(text), { at: 'tok=1', sid: '-123', bl: 'boq_x', path: '/u/1/_/PhotosUi/', account: '9876' });
   assert.equal(sessionFromText('nothing here'), null);
+});
+
+test('reads the keys of a page of search results', () => {
+  // EzkLib items look like timeline items but carry no location.
+  const result = (key: string) => [key, ['https://photos.fife.usercontent.google.com/pw/THUMB_' + key, 4080, 3072], 1763240336000, 'dedup', -18000000, 1763240400000, [1], [16], 1, null, null, null, 1, null, null, { 163238866: [false] }];
+  const page = parseSearchPage([[result('AF1Qa'), result('AF1Qb'), null, ['', 1]], 'NEXT', 1]);
+  assert.deepEqual(page.keys, ['AF1Qa', 'AF1Qb']);
+  assert.equal(page.next, 'NEXT');
+  assert.equal(parseSearchPage([[result('AF1Qc')], null]).next, null);
+  assert.deepEqual(parseSearchPage([null]).keys, []);
+  assert.throws(() => parseSearchPage(null));
+});
+
+test('tells a busy answer from one that changed shape', () => {
+  // RESOURCE_EXHAUSTED (8) comes in place of the payload.
+  const busy = ')]}\'\n\n139\n[["wrb.fr","EzkLib",null,null,null,[8],"generic"],["di",42],["af.httprm",42,"1",9]]\n25\n[["e",4,null,null,139]]\n';
+  assert.equal(extract(busy, 'EzkLib'), undefined);
+  assert.equal(errorCode(busy, 'EzkLib'), 8);
+  assert.equal(errorCode(busy, 'lcxiM'), null);
+  const fine = ')]}\'\n\n60\n[["wrb.fr","EzkLib","[[],null]",null,null,null,"generic"]]\n';
+  assert.equal(errorCode(fine, 'EzkLib'), null);
+  assert.deepEqual(extract(fine, 'EzkLib'), [[], null]);
 });

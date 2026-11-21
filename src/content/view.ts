@@ -7,6 +7,7 @@ import { cellsOf, coverTier } from './geo.ts';
 import { Grid } from './grid.ts';
 import type { Library } from './library.ts';
 import { fitViewport, sameYears } from './route.ts';
+import { searchFor, type Search } from './search.ts';
 import { loadViewerInsets, saveViewerInsets, type Insets } from './store.ts';
 import { CSS } from './styles.ts';
 import { YearBar } from './years.ts';
@@ -60,10 +61,22 @@ function pageTheme(): Theme {
 const wrap = (lng: number) => ((((lng + 180) % 360) + 360) % 360) - 180;
 
 /**
- * Above Google's page (its nav, header and scrollbar sit at 100-200) and just
- * under its photo viewer (450) and menus, the way its own grid sits.
+ * Above Google's page (its nav at 100, its date scrubber at 150) and under its
+ * header (200), whose search suggestions drop down over the page, and its
+ * photo viewer (450) and menus.
  */
-const BASE_Z = '449';
+const BASE_Z = '199';
+/** On a search page: above its results (a layer at 300), under its search box and suggestions (350). */
+const SEARCH_Z = '349';
+
+/** Where a search page's results start: under its header, the visible menubar. */
+function searchTop(): number {
+  for (const bar of Array.from(document.querySelectorAll<HTMLElement>('[role="main"] [role="menubar"]'))) {
+    const r = bar.getBoundingClientRect();
+    if (r.height > 0 && r.top <= 1 && bar.checkVisibility()) return Math.round(r.bottom);
+  }
+  return 64;
+}
 
 /** The photo Google's viewer is showing: its largest visible image. */
 function viewerImage(layer: Element): HTMLImageElement | null {
@@ -168,6 +181,18 @@ export class MapView {
   private minYear = 0;
   private maxYear = 0;
 
+  /** On a search page: the search, and the photos it found (1 by index) */
+  private search: Search | null = null;
+  private unwatchSearch: (() => void) | null = null;
+  private match: Uint8Array | null = null;
+  private matches = 0;
+  private drawnMatch: Uint8Array | null = null;
+  /** Frame the results as they come in, until the person moves the map */
+  private fitSearch = false;
+  private searchFramed = false;
+  private touched = false;
+  private retryAction: (() => void) | null = null;
+
   constructor(private readonly lib: Library, private readonly opts: Options) {
     this.host.dataset.photosMap = 'view';
     this.host.style.cssText = `position:fixed;z-index:${BASE_Z};visibility:hidden;overflow:hidden;contain:strict;`;
@@ -182,7 +207,7 @@ export class MapView {
     const bar = el('header', 'bar');
     this.status.setAttribute('role', 'status');
     this.retry.hidden = true;
-    this.retry.addEventListener('click', () => void this.lib.start().catch(() => {}));
+    this.retry.addEventListener('click', () => this.retryAction?.());
     bar.append(el('h1', '', 'Map'), this.status, this.retry);
 
     const body = el('div', 'body');
@@ -218,6 +243,10 @@ export class MapView {
     credit.append(own, ' · ', ofm, ' ', osm);
     this.mapNote.hidden = true;
     stage.append(this.mapEl, this.mapNote, zoom, this.yearBar.el, credit);
+    // Once the person moves the map, results still coming in don't move it again.
+    for (const type of ['pointerdown', 'wheel', 'keydown'] as const) {
+      stage.addEventListener(type, () => (this.touched = true), { passive: true });
+    }
 
     const photo = el('div', 'pin-photo');
     this.pinImg.alt = '';
@@ -255,13 +284,16 @@ export class MapView {
       if (e.type === 'reset') {
         this.indexYears(0);
         this.sendPoints(0, true);
+        // The indexes changed: find the search's results again.
+        this.rebuildMatch();
         if (this.pending === 'fit') this.fit(false);
         this.updateVisible();
       } else if (e.type === 'append') {
         // A first pass is streaming in: leave the map where the person put it.
-        if (this.pending === 'fit') this.pending = null;
+        if (this.pending === 'fit' && !this.search) this.pending = null;
         this.indexYears(e.from);
         this.sendPoints(e.from, false);
+        if (this.search) this.rebuildMatch();
         this.updateVisibleSoon();
       }
       if (e.type === 'status') {
@@ -486,6 +518,67 @@ export class MapView {
     this.syncYears();
   }
 
+  /**
+   * On a search page, show only what Google Photos' search finds for these
+   * words; null shows every photo. frame: fit the map to the results as they
+   * arrive (when the URL doesn't say where to look).
+   */
+  setSearch(query: string | null, frame: boolean): void {
+    if ((this.search?.query ?? null) === query) return;
+    this.unwatchSearch?.();
+    this.unwatchSearch = null;
+    // Left unfinished, it carries on from the same page if this search comes back.
+    this.search?.stop();
+    this.search = query ? searchFor(this.lib.account, query) : null;
+    this.fitSearch = !!query && frame;
+    this.searchFramed = false;
+    this.touched = false;
+    if (this.search) {
+      this.unwatchSearch = this.search.on(() => this.searchChanged());
+      this.search.start();
+    }
+    this.rebuildMatch();
+    this.place();
+    this.renderStatus();
+  }
+
+  private searchChanged(): void {
+    const s = this.search;
+    if (!s) return;
+    this.rebuildMatch();
+    if (this.fitSearch && !this.touched && this.matches) {
+      // Jump to the first results, then ease out to frame them all once every page is in.
+      if (!this.searchFramed) this.searchFramed = this.fit(false);
+      else if (s.state === 'done') {
+        this.fit(true);
+        this.fitSearch = false;
+      }
+    }
+    this.renderStatus();
+  }
+
+  /** Mark the photos the search found, by index, and redraw if that changed anything. */
+  private rebuildMatch(): void {
+    const s = this.search;
+    if (!s) {
+      this.match = null;
+      this.matches = 0;
+    } else {
+      const photos = this.lib.photos;
+      const match = new Uint8Array(photos.length);
+      let n = 0;
+      for (let i = 0; i < photos.length; i++) {
+        if (s.keys.has(photos[i].k)) {
+          match[i] = 1;
+          n++;
+        }
+      }
+      this.match = match;
+      this.matches = n;
+    }
+    this.applyFilter(true);
+  }
+
   private loadEngine(): Promise<void> {
     this.engineLoad ??= (async () => {
       const started = performance.now();
@@ -505,8 +598,9 @@ export class MapView {
         },
       });
       dlog(`engine ready in ${Math.round(performance.now() - started)}ms`);
-      this.engine.setYears(this.years);
+      this.engine.setFilter(this.years, this.match);
       this.drawnYears = this.years;
+      this.drawnMatch = this.match;
       this.sendPoints(0, true);
       if (this.pending) this.setViewport(this.pending);
     })().catch((e: unknown) => {
@@ -571,6 +665,20 @@ export class MapView {
 
   private place(): void {
     if (!this.shown) return;
+    if (this.search) {
+      // A search page has no card: its results fill the window under its header.
+      const top = searchTop();
+      const st = this.host.style;
+      st.top = `${top}px`;
+      st.left = '0';
+      st.width = '100vw';
+      st.height = `calc(100dvh - ${top}px)`;
+      st.borderRadius = '0';
+      st.zIndex = SEARCH_Z;
+      this.placed = true;
+      return;
+    }
+    this.host.style.zIndex = BASE_Z;
     const card = findCard();
     // No card while Google's viewer is up (it hides the page): stay put.
     if (!card && this.placed) return;
@@ -620,7 +728,7 @@ export class MapView {
     if (sameYears(range, this.years)) return;
     this.years = range;
     this.opts.yearsChanged(range);
-    this.applyYears(true);
+    this.applyFilter(true);
   }
 
   private pickYears(range: YearRange | null, done: boolean): void {
@@ -628,7 +736,7 @@ export class MapView {
       this.years = range;
       this.opts.yearsChanged(range);
     }
-    this.applyYears(done);
+    this.applyFilter(done);
   }
 
   private showAllYears(): void {
@@ -637,30 +745,34 @@ export class MapView {
   }
 
   /**
-   * New years redraw the heat, regroup the bubbles and refill the photos:
-   * while a handle moves, at most every 150 ms, then once more when it stops.
+   * New years or search results redraw the heat, regroup the bubbles and
+   * refill the photos: while a handle moves, at most every 150 ms, then once
+   * more when it stops.
    */
-  private applyYears(now: boolean): void {
+  private applyFilter(now: boolean): void {
     if (!now) {
-      this.yearsTimer ||= window.setTimeout(() => this.applyYears(true), 150);
+      this.yearsTimer ||= window.setTimeout(() => this.applyFilter(true), 150);
       return;
     }
     clearTimeout(this.yearsTimer);
     this.yearsTimer = 0;
-    if (sameYears(this.years, this.drawnYears)) return;
+    if (sameYears(this.years, this.drawnYears) && this.match === this.drawnMatch) return;
     const started = performance.now();
     this.drawnYears = this.years;
-    this.engine?.setYears(this.years);
+    this.drawnMatch = this.match;
+    this.engine?.setFilter(this.years, this.match);
     this.sendCells();
     this.updateVisible();
-    dlog(`years ${this.years ? formatYears(this.years) : 'all'} in ${Math.round(performance.now() - started)}ms`);
+    dlog(`filter ${this.years ? formatYears(this.years) : 'all'}${this.match ? ` · ${this.matches} found` : ''} in ${Math.round(performance.now() - started)}ms`);
   }
 
-  private keepYear(): ((i: number) => boolean) | undefined {
+  /** The photos the years and the search let through; undefined when that's all of them. */
+  private keep(): ((i: number) => boolean) | undefined {
     const r = this.years;
-    if (!r) return undefined;
+    const match = this.match;
+    if (!r && !match) return undefined;
     const years = this.yearOf;
-    return (i) => years[i] >= r.from && years[i] <= r.to;
+    return (i) => (!match || match[i] === 1) && (!r || (years[i] >= r.from && years[i] <= r.to));
   }
 
   private sendPoints(start: number, reset: boolean): void {
@@ -690,7 +802,7 @@ export class MapView {
     this.cellsTimer = 0;
     if (!this.engine) return;
     const photos = this.lib.photos;
-    const keep = this.keepYear();
+    const keep = this.keep();
     const wide = cellsOf(photos, 0.01, keep);
     this.engine.setCells('wide', wide.lo, wide.la, wide.w);
     const fine = cellsOf(photos, 0.001, keep);
@@ -704,11 +816,13 @@ export class MapView {
     this.updateVisible();
   }
 
-  private fit(animate: boolean): void {
-    const bounds = this.lib.bounds(this.keepYear());
-    if (!bounds || !this.engine) return;
+  /** Frame every photo shown; false when there's nothing to frame yet. */
+  private fit(animate: boolean): boolean {
+    const bounds = this.lib.bounds(this.keep());
+    if (!bounds || !this.engine) return false;
     this.pending = null;
     this.engine.fit(bounds, animate);
+    return true;
   }
 
   private open(i: number, from: Rect | null = null): void {
@@ -754,6 +868,7 @@ export class MapView {
     const photos = this.lib.photos;
     const years = this.yearOf;
     const r = this.years;
+    const match = this.match;
     const first = this.minYear;
     const counts = new Uint32Array(this.maxYear >= first && first ? this.maxYear - first + 1 : 0);
     const out: number[] = [];
@@ -768,6 +883,7 @@ export class MapView {
       const p = photos[i];
       if (b && (p.la < b[1] || p.la > b[3])) continue;
       if (!everyLng && (crosses ? p.lo < w && p.lo > e : p.lo < w || p.lo > e)) continue;
+      if (match && !match[i]) continue;
       const y = years[i];
       counts[y - first]++;
       if (r && (y < r.from || y > r.to)) continue;
@@ -793,41 +909,61 @@ export class MapView {
     this.dates.textContent = this.span;
 
     let message = '';
+    let action: 'fit' | 'all' | null = null;
     const r = this.years;
-    this.emptyAction = 'fit';
+    const s = this.search;
+    const what = s ? 'results' : 'photos';
     if (!photos.length) {
       if (this.lib.state === 'ready') message = 'None of your photos have a location yet.';
+    } else if (s && !this.matches) {
+      // While it runs, the status line says so.
+      if (s.state === 'done') message = s.keys.size ? 'None of these results have a location.' : 'No results.';
     } else if (!n) {
-      if (r && !this.lib.bounds(this.keepYear())) {
-        message = `No photos from ${formatYears(r)}.`;
-        this.emptyAction = 'all';
+      if (r && !this.lib.bounds(this.keep())) {
+        message = `No ${what} from ${formatYears(r)}.`;
+        action = 'all';
       } else {
-        message = r ? `No photos from ${formatYears(r)} in this area.` : 'No photos in this area.';
+        message = r ? `No ${what} from ${formatYears(r)} in this area.` : `No ${what} in this area.`;
+        action = 'fit';
       }
     }
+    this.emptyAction = action ?? 'fit';
     this.empty.hidden = !message;
     this.emptyText.textContent = message;
-    this.emptyButton.hidden = !(photos.length && !n);
-    this.emptyButton.textContent = this.emptyAction === 'all' ? 'Show all years' : 'Show all';
+    this.emptyButton.hidden = !action;
+    this.emptyButton.textContent = action === 'all' ? 'Show all years' : 'Show all';
   }
 
   private renderStatus(): void {
     const { state, error, photos } = this.lib;
+    const s = this.search;
     let text = '';
-    let canRetry = false;
-    if (state === 'first-pass') {
+    let retry: (() => void) | null = null;
+    if (error?.signedOut) text = 'Sign in to Google Photos to see your map.';
+    else if (state === 'first-pass') {
       text = photos.length ? `Mapping your photos… ${formatNumber(photos.length)}` : 'Mapping your photos…';
+    } else if (s && (s.state === 'running' || s.state === 'idle')) {
+      text = this.matches ? `Searching… ${formatNumber(this.matches)} on the map` : 'Searching…';
+    } else if (s?.state === 'busy') {
+      text = 'Google Photos is busy. Showing the results so far.';
+      retry = () => s.start();
+    } else if (s?.state === 'error') {
+      text = s.signedOut ? 'Sign in to Google Photos to search.' : 'Couldn’t finish the search.';
+      if (!s.signedOut) retry = () => s.start();
     } else if (state === 'ready' && Date.now() < this.doneUntil) {
       text = `${formatCount(photos.length)} mapped`;
     } else if (error) {
-      if (error.signedOut) text = 'Sign in to Google Photos to see your map.';
-      else if (state === 'error') text = photos.length ? `Stopped at ${formatCount(photos.length)}.` : 'Couldn’t reach Google Photos.';
-      else text = 'Couldn’t check for new photos.';
-      canRetry = !error.signedOut;
+      text = state === 'error' ? (photos.length ? `Stopped at ${formatCount(photos.length)}.` : 'Couldn’t reach Google Photos.') : 'Couldn’t check for new photos.';
+      retry = () => void this.lib.start().catch(() => {});
+    } else if (s?.state === 'done' && this.matches) {
+      // Not every result has a location; say how many made it onto the map.
+      const found = this.matches;
+      text = `${formatNumber(found)} of ${s.capped ? 'the newest ' : ''}${formatNumber(s.keys.size)} ${found === 1 ? 'has' : 'have'} a location`;
     }
     this.status.textContent = text;
-    this.retry.hidden = !canRetry;
-    this.progress.hidden = state !== 'first-pass';
+    this.retryAction = retry;
+    this.retry.hidden = !retry;
+    this.progress.hidden = state !== 'first-pass' && !(s && s.state === 'running');
     this.renderPanel();
   }
 }

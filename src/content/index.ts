@@ -3,7 +3,8 @@ import { alive } from './alive.ts';
 import { readSession } from './google.ts';
 import { Library } from './library.ts';
 import { MapNavItem } from './nav.ts';
-import { hashFor, readRoute, sameYears } from './route.ts';
+import { hashFor, readRoute, sameYears, searchQuery } from './route.ts';
+import { SearchMapButton } from './searchbutton.ts';
 import { loadView, saveView } from './store.ts';
 import { dlog, MapView } from './view.ts';
 
@@ -19,8 +20,18 @@ if (__DEV__) {
 
 let view: MapView | null = null;
 let library: Library | null = null;
+/** Where the map is and its years, as the URL says */
 let lastViewport: MapViewport | null = null;
 let lastYears: YearRange | null = null;
+/** The full map's, kept apart from a search's so the Map item opens it as it was left */
+let mapViewport: MapViewport | null = null;
+let mapYears: YearRange | null = null;
+/** What the map showed at the last route: a search's words, null for every photo, undefined when closed */
+let shown: string | null | undefined;
+/** A step back or forward in history happened, until route() reads it */
+let traversing = false;
+/** The search page the map button opened the map over, to step back to */
+let mapOverGrid: string | null = null;
 let saveTimer = 0;
 let lastHref = '';
 /** Where the map was when a photo was opened from it, until the photo viewer closes */
@@ -37,8 +48,25 @@ const isPhoto = (href: string) => /\/photo\/[^/]+/.test(new URL(href, location.h
 
 const nav = new MapNavItem(() => {
   if (readRoute(location.hash).open) return;
-  history.pushState(null, '', page() + hashFor(lastViewport, lastYears));
+  history.pushState(null, '', page() + hashFor(mapViewport, mapYears));
   // Cut off by an extension reload or update: reload so the new copy opens it.
+  if (!view && !alive()) location.reload();
+  else route();
+});
+
+// On a search page: show its results on the map, and back.
+const searchButton = new SearchMapButton(() => {
+  if (readRoute(location.hash).open) {
+    // Back to Google's results: undo the button's own step, or take the map off this page.
+    if (mapOverGrid === location.pathname) history.back();
+    else {
+      history.replaceState(null, '', page());
+      route();
+    }
+    return;
+  }
+  mapOverGrid = location.pathname;
+  history.pushState(null, '', page() + '#map');
   if (!view && !alive()) location.reload();
   else route();
 });
@@ -74,11 +102,15 @@ function ensureView(): MapView {
     viewChanged(v) {
       lastViewport = v;
       writeHash();
+      // Only the full map's place is kept for next time; a search frames its own.
+      if (searchQuery(location.pathname)) return;
+      mapViewport = v;
       clearTimeout(saveTimer);
       saveTimer = window.setTimeout(() => void saveView(account, v), 800);
     },
     yearsChanged(years) {
       lastYears = years;
+      if (!searchQuery(location.pathname)) mapYears = years;
       writeHash();
     },
   });
@@ -88,6 +120,8 @@ function ensureView(): MapView {
 function route(): void {
   const before = lastHref;
   lastHref = location.href;
+  const stepped = traversing;
+  traversing = false;
   // Google's viewer closes (its back arrow, Escape) by opening the page it
   // thinks the photo came from: the one under the map. For a photo opened
   // from the map, that means the map, just as it was left.
@@ -100,8 +134,18 @@ function route(): void {
     }
     returnTo = null;
   }
+  const query = searchQuery(location.pathname);
+  // A search made while the map shows lands on the map too. Not a step back
+  // in history, though: that returns to the page as it was.
+  const from = before ? new URL(before).pathname : location.pathname;
+  if (query && shown !== undefined && !stepped && !location.hash && !isPhoto(before || location.href) && from !== location.pathname) {
+    history.replaceState(null, '', page() + '#map');
+    lastHref = location.href;
+  }
   nav.ensure();
+  searchButton.ensure(!!query, true);
   const r = readRoute(location.hash);
+  searchButton.setOnMap(r.open && !!query);
   if (!r.open) {
     // A photo opened from the map shows in Google's viewer, above the map:
     // leave the map where it is, so closing the photo reveals it again.
@@ -110,7 +154,9 @@ function route(): void {
       return;
     }
     view?.hide();
+    view?.setSearch(null, false);
     nav.setSelected(false);
+    shown = undefined;
     return;
   }
   // Back or forward into the map after the extension was reloaded or updated:
@@ -120,25 +166,35 @@ function route(): void {
     return;
   }
   const v = ensureView();
-  nav.setSelected(true);
-  const firstShow = !v.isShown && !lastViewport;
+  nav.setSelected(!query);
+  const was = v.isShown ? shown : undefined;
+  // A new search without a place in its URL frames its own results: forget the old place.
+  if (!r.viewport && was !== query) lastViewport = null;
+  // The years before the search, so its results are framed with the right ones.
+  if (!sameYears(r.years, lastYears)) {
+    lastYears = r.years;
+    v.setYears(r.years);
+  }
+  // The search before show(), so the map opens in its place under the search header.
+  v.setSearch(query, !r.viewport);
   v.show();
   if (r.viewport) {
     if (!sameViewport(r.viewport, lastViewport)) {
       lastViewport = r.viewport;
       v.setViewport(r.viewport);
     }
-  } else if (firstShow && library) {
-    const account = library.account;
-    void loadView(account).then(
-      (saved) => v.setViewport(saved ?? 'fit'),
-      () => v.setViewport('fit'),
-    );
+  } else if (was !== query) {
+    // A search frames its results as they come; the full map opens where it was left last time.
+    if (query) v.setViewport('fit');
+    else if (library) {
+      const account = library.account;
+      void loadView(account).then(
+        (saved) => v.setViewport(saved ?? 'fit'),
+        () => v.setViewport('fit'),
+      );
+    }
   }
-  if (!sameYears(r.years, lastYears)) {
-    lastYears = r.years;
-    v.setYears(r.years);
-  }
+  shown = query;
 }
 
 function sameViewport(a: MapViewport, b: MapViewport | null): boolean {
@@ -153,7 +209,10 @@ function checkUrl(): void {
 }
 
 window.addEventListener('hashchange', route);
-window.addEventListener('popstate', () => setTimeout(route, 0));
+window.addEventListener('popstate', () => {
+  traversing = true;
+  setTimeout(route, 0);
+});
 navigation?.addEventListener('navigatesuccess', () => setTimeout(checkUrl, 0));
 
 /** Leave a photo opened from the map: step back to the map's own history entry. */
@@ -229,6 +288,8 @@ function tick(): void {
   checkUrl();
   nav.ensure();
   nav.repaint();
+  // Google redraws the search header as results load and selections change.
+  searchButton.ensure(!!searchQuery(location.pathname));
 }
 
 if (__DEV__) {

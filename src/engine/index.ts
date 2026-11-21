@@ -25,8 +25,11 @@ export interface Engine {
    * year is the year each photo was taken.
    */
   setPoints(lo: Float64Array, la: Float64Array, tier: Uint8Array, year: Uint16Array, start: number, reset: boolean): void;
-  /** Show only the photos from these years; null for all. */
-  setYears(range: YearRange | null): void;
+  /**
+   * Show only the photos from these years (null for all) and, with a mask,
+   * only the photos whose index it marks 1 (a search's results).
+   */
+  setFilter(range: YearRange | null, mask: Uint8Array | null): void;
   /** Photos summed into cells; w is each cell's weight, 0..1 */
   setCells(level: CellLevel, lo: Float64Array, la: Float64Array, w: Float32Array): void;
   jumpTo(center: [number, number], zoom: number): void;
@@ -87,6 +90,7 @@ const heatColor = (theme: Theme) =>
   ['interpolate', ['linear'], ['heatmap-density'], ...HEAT[theme]] as unknown as ExpressionSpecification;
 
 const inYears = (f: PhotoFeature, r: YearRange | null) => !r || (f.properties.y >= r.from && f.properties.y <= r.to);
+const kept = (f: PhotoFeature, r: YearRange | null, mask: Uint8Array | null) => inYears(f, r) && (!mask || mask[f.id as number] === 1);
 
 let workerReady: Promise<void> | null = null;
 
@@ -204,10 +208,11 @@ export async function createEngine(opts: Options): Promise<Engine> {
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
 
-  // Every photo sent, by index; `shown` is the ones in the chosen years.
+  // Every photo sent, by index; `shown` is the ones the filter keeps.
   let all: PhotoFeature[] = [];
   let shown: PhotoFeature[] = [];
   let years: YearRange | null = null;
+  let mask: Uint8Array | null = null;
   const cells: CellData = { wide: EMPTY, fine: EMPTY };
   let marker: Marker | null = null;
   const bubbles = new Map<string, { marker: Marker; group: Group }>();
@@ -376,7 +381,7 @@ export async function createEngine(opts: Options): Promise<Engine> {
           properties: { s: tier[k] * TIER + i, y: year[k] },
         };
       }
-      const fresh = years ? added.filter((f) => inYears(f, years)) : added;
+      const fresh = years || mask ? added.filter((f) => kept(f, years, mask)) : added;
       if (reset) {
         all = added;
         shown = fresh.slice();
@@ -391,24 +396,27 @@ export async function createEngine(opts: Options): Promise<Engine> {
       // Grouping is rebuilt from every photo; while a first pass streams in, once a second.
       setGroups(false);
     },
-    setYears(next) {
+    setFilter(next, nextMask) {
       const prev = years;
-      if (prev === next || (prev && next && prev.from === next.from && prev.to === next.to)) return;
+      const prevMask = mask;
+      const sameYears = prev === next || (prev && next && prev.from === next.from && prev.to === next.to);
+      if (sameYears && prevMask === nextMask) return;
       years = next;
+      mask = nextMask;
       // Send only what changed: MapLibre merges the changes that pile up
       // while its worker is busy, so dragging the years stays smooth.
       const add: PhotoFeature[] = [];
       const remove: number[] = [];
-      const kept: PhotoFeature[] = [];
+      const keep: PhotoFeature[] = [];
       for (const f of all) {
-        const now = inYears(f, next);
-        if (now) kept.push(f);
-        if (now !== inYears(f, prev)) {
+        const now = kept(f, next, nextMask);
+        if (now) keep.push(f);
+        if (now !== kept(f, prev, prevMask)) {
           if (now) add.push(f);
           else remove.push(f.id as number);
         }
       }
-      shown = kept;
+      shown = keep;
       if (!add.length && !remove.length) return;
       update('photos', add, remove);
       update('groups', add.slice(), remove.slice());
