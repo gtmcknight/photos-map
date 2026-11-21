@@ -42,3 +42,5 @@ The first visit reads your library once (about 4 minutes for 100,000 photos) and
 ## License
 
 MIT
+
+Google Photos is a trademark of Google LLC. This extension is not made or endorsed by Google.

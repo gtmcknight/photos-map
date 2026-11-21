@@ -4,11 +4,11 @@ Everything the developer dashboard asks for, ready to paste.
 
 ## Item
 
-- **Name:** Map for Google Photos
-- **Summary** (132 characters max):
+- **Name:** Map for Google Photos™ (from the package; Google's branding rules want "for" plus ™ when a title names a Google product)
+- **Summary** (from the package's manifest description, 132 characters max):
 
 ```
-See every photo you've taken on a map, right inside Google Photos on the web. Drag through the years.
+Adds a map of where you took your pictures to Google Photos™ on the web. Locations stay on your computer.
 ```
 
 - **Category:** Functionality & UI (the store has no Photos category)
@@ -16,22 +16,22 @@ See every photo you've taken on a map, right inside Google Photos on the web. Dr
 
 ## Description
 
+Keep every keyword under five uses across the summary and description (Google's spam FAQ: more than five "may result in increased scrutiny").
+
 ```
-Google Photos has a map on your phone but not on the web. This adds it.
+In Google Photos™ on your computer, a new Map item sits in the left menu, right below Places. Click it and each picture with a location shows up where it was taken:
 
-A Map item appears in Google Photos' left menu, next to Places. Open it and every photo with a location shows on the map:
+• Color shows where you shot the most, from the whole world down to the street.
+• Click a bubble to zoom in or open a picture.
+• What's in view sits beside it, grouped by day.
+• A year bar narrows it to one trip or one decade.
+• Pictures open in the regular viewer, and Back returns you to the same spot.
 
-• A heat map of where you've taken photos, from the whole world down to the street.
-• Photo bubbles you can click to zoom into a place or open a photo.
-• The photos in view, grouped by day, beside the map.
-• A year bar to see only the photos from some years.
-• Photos open in Google Photos' own viewer, and Back returns you to the same spot.
+It follows your light or dark theme. The address bar keeps where you are and which years you picked, so you can bookmark a place.
 
-It follows Google Photos' light and dark themes, and the map's position and years are kept in the address bar, so you can bookmark a place.
+Private by design: locations are read through your own sign-in and stay on your computer. There's no server and no account. The streets and place names come from OpenFreeMap (OpenStreetMap data).
 
-Private by design: your photos' locations are read from your own signed-in Google Photos page and kept on your computer. There's no server and no account. The map tiles come from OpenFreeMap (OpenStreetMap data).
-
-Not affiliated with Google. Source code: https://github.com/gtmcknight/photos-map
+Google Photos is a trademark of Google LLC, which doesn't make or endorse this extension. Source code: https://github.com/gtmcknight/photos-map
 ```
 
 ## Privacy practices
@@ -71,3 +71,8 @@ Adds the Map page inside Google Photos and reads your library's photo locations 
 - Icon: `static/icons/128.png`
 - Screenshots: 1280×800, up to 5.
 - Small promo tile: 440×280.
+
+## Review history
+
+- **1.0.0, submitted Nov 17, 2026: rejected the same day.** "Spam and Placement in the Store", violation reference Yellow Nickel, no other detail. The account has one item, so not a duplicate. The listing said "photo" 14 times, "map" 8 and "Google" 6, over the spam FAQ's five, and named Google Photos with no ™ or trademark line.
+- **1.0.1:** title and summary carry Google Photos™, the description ends with the trademark line, and no keyword appears more than four times. The description no longer opens like Photo Heat Map's pitch (their site: the phone app has a map, the website doesn't, "Photo Heat Map adds one"), in case Google compares listings for copies. Code unchanged.
