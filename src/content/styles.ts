@@ -35,6 +35,7 @@ export const CSS = `
   font: 400 14px/20px var(--sans);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  container-type: inline-size;
 }
 .view[data-theme="dark"] {
   --surface: #131314;
@@ -279,6 +280,19 @@ button { font: 500 14px/20px var(--sans); cursor: pointer; }
 
 .empty { position: absolute; inset: 72px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; color: var(--muted); }
 .empty p { margin: 0; font: 400 16px/24px var(--sans); text-wrap: balance; }
+
+/* A search with nothing on the map has no years to choose between. */
+.view.no-results .years { display: none; }
+
+/*
+ * A narrow window: the photos go under the map. Beside it, the map would be
+ * too narrow for the years and the credit line.
+ */
+@container (max-width: 700px) {
+  .body { flex-direction: column; }
+  .stage { flex: 3 1 0; min-height: 0; }
+  .panel { flex: 2 1 0; width: auto; border-left: 0; border-top: 1px solid var(--line); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .progress::before { animation-duration: 3s; }

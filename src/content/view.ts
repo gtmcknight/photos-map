@@ -927,6 +927,7 @@ export class MapView {
         action = 'fit';
       }
     }
+    this.view.classList.toggle('no-results', !!s && s.state === 'done' && !this.matches);
     this.emptyAction = action ?? 'fit';
     this.empty.hidden = !message;
     this.emptyText.textContent = message;
