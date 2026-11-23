@@ -16,6 +16,10 @@ Google Photos has a map on your phone but not on the web. This Chrome extension 
 
 Your photos' locations are read from your own signed-in Google Photos page and kept in the extension's storage on your computer. There's no server, no account and no analytics. Map tiles come from [OpenFreeMap](https://openfreemap.org), so their servers see which map areas you view. Details in [PRIVACY.md](PRIVACY.md).
 
+## Install
+
+Add it from the [Chrome Web Store](https://chromewebstore.google.com/detail/map-for-google-photos/dcklgjofhapneoalkcfiilommdempmjp), then open [photos.google.com](https://photos.google.com) and click **Map**.
+
 ## Install from source
 
 1. `npm install && npm run build`
