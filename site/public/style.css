@@ -87,18 +87,19 @@ h1 {
   color: var(--text-2);
   text-wrap: balance;
 }
-.cta { margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px 24px; }
+.cta { margin-top: 32px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .button {
   display: inline-flex; align-items: center; gap: 8px;
-  height: 44px; padding: 0 22px 0 18px;
+  height: 44px; padding: 0 22px;
   border-radius: 999px; background: var(--accent); color: var(--on-accent);
   font-weight: 500; text-decoration: none; white-space: nowrap;
   transition: background-color 150ms var(--ease), transform 150ms var(--ease);
 }
 .button:hover { background: var(--accent-hover); }
 .button:active { transform: scale(0.97); }
-.button svg { width: 20px; height: 20px; }
-.note { font-size: 14px; color: var(--text-2); }
+/* Google's official badge: resized only, never restyled (Chrome Web Store branding rules). */
+.badge { display: block; line-height: 0; }
+.badge img { display: block; height: 48px; width: auto; }
 
 /* product shots: real screenshots with a hairline, never stretched */
 .shot { margin: 0; }
